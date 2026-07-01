@@ -7339,6 +7339,7 @@ function (window, undefined) {
 		this.buttons = [{"text": "Ok", "primary": true}, {"text": "Cancel", "primary": false}];
 
 		this.size = undefined;
+		this.panelWidth = undefined;
 		this.initOnSelectionChanged = undefined;
 
 		this.store = undefined;
@@ -7396,6 +7397,9 @@ function (window, undefined) {
 	CPluginVariation.prototype["get_Size"] = function () {
 		return this.size;
 	};
+	CPluginVariation.prototype["get_PanelWidth"] = function () {
+		return this.panelWidth;
+	};
 	CPluginVariation.prototype["get_Events"] = function () {
 		return this.events;
 	};
@@ -7438,6 +7442,7 @@ function (window, undefined) {
 		_object["buttons"] = this.buttons;
 
 		_object["size"] = this.size;
+		_object["panelWidth"] = this.panelWidth;
 		_object["initOnSelectionChanged"] = this.initOnSelectionChanged;
 
 		_object["store"] = this.store;
@@ -7494,6 +7499,7 @@ function (window, undefined) {
 		if (_object["events"] != null) this["set_Events"](_object["events"]);
 
 		this.size = (_object["size"] != null) ? _object["size"] : this.size;
+		this.panelWidth = (_object["panelWidth"] != null) ? _object["panelWidth"] : this.panelWidth;
 		this.initOnSelectionChanged = (_object["initOnSelectionChanged"] != null) ? _object["initOnSelectionChanged"] : this.initOnSelectionChanged;
 	};
 
