@@ -6821,6 +6821,154 @@ Paragraph.prototype.GetPrevRunElement = function(oParaPos)
 	return oRunElements.Elements[0];
 };
 /**
+ * Получаем ближайший элемент рана в заданном направлении вместе с его позицией
+ * @param {AscWord.CParagraphContentPos} oContentPos
+ * @param {boolean} isPrevious
+ * @returns {?{Element: AscWord.CRunElementBase, Position: AscWord.CParagraphContentPos}}
+ */
+Paragraph.prototype.private_GetLanguageRunElement = function(oContentPos, isPrevious)
+{
+	let oRunElements = new CParagraphRunElements(
+		oContentPos,
+		1,
+		null,
+		isPrevious
+	);
+	oRunElements.SetSkipMath(false);
+	oRunElements.SetSaveContentPositions(true);
+
+	if (isPrevious)
+		this.GetPrevRunElements(oRunElements);
+	else
+		this.GetNextRunElements(oRunElements);
+
+	let arrElements  = oRunElements.GetElements();
+	let arrPositions = oRunElements.GetContentPositions();
+
+	if (1 !== arrElements.length || 1 !== arrPositions.length)
+		return null;
+
+	return {
+		Element  : arrElements[0],
+		Position : arrPositions[0]
+	};
+};
+/**
+ * Строим контекст языка сильного текста для найденного кандидата
+ * @param {?{Element: AscWord.CRunElementBase, Position: AscWord.CParagraphContentPos}} oCandidate
+ * @param {number} nDistance
+ * @returns {?object}
+ */
+Paragraph.prototype.private_CreateStrongTextLanguageContext = function(oCandidate, nDistance)
+{
+	if (!oCandidate || !oCandidate.Element)
+		return null;
+
+	let oElement = oCandidate.Element;
+	if (!oElement.IsText()
+		|| (oElement.IsInstrText && oElement.IsInstrText()))
+	{
+		return null;
+	}
+
+	let oRun = this.GetClassByPos(oCandidate.Position);
+	if (!(oRun instanceof AscWord.ParaRun))
+		return null;
+
+	let oTextPr = oRun.Get_CompiledPr(false);
+	let nDirectionFlag = oElement.GetDirectionFlag();
+	if (AscBidi.DIRECTION_FLAG.LTR !== nDirectionFlag
+		&& AscBidi.DIRECTION_FLAG.RTL !== nDirectionFlag)
+	{
+		return null;
+	}
+
+	let nFontSlot = oElement.GetFontSlot(oTextPr);
+	let nEastAsiaBeforeDirect = oRun.GetCompiledEastAsiaBeforeDirect();
+	let nResolvedLcid = AscWord.ResolveTextLanguage(
+		oTextPr.Lang,
+		nFontSlot,
+		nDirectionFlag,
+		nEastAsiaBeforeDirect
+	);
+
+	if (undefined === nResolvedLcid)
+		return null;
+
+	return {
+		Element              : oElement,
+		Position             : oCandidate.Position.Copy(),
+		Run                  : oRun,
+		TextPr               : oTextPr,
+		DirectionFlag        : nDirectionFlag,
+		FontSlot             : nFontSlot,
+		EastAsiaBeforeDirect : nEastAsiaBeforeDirect,
+		ResolvedLcid         : nResolvedLcid,
+		Distance             : nDistance
+	};
+};
+/**
+ * Ищем ближайший контекст языка сильного текста в заданном направлении
+ * @param {AscWord.CParagraphContentPos} oContentPos
+ * @param {boolean} isPrevious
+ * @returns {?object}
+ */
+Paragraph.prototype.private_FindStrongTextLanguageContext = function(oContentPos, isPrevious)
+{
+	let oSearchPos = oContentPos.Copy();
+
+	for (let nDistance = 1; ; ++nDistance)
+	{
+		let oCandidate = this.private_GetLanguageRunElement(
+			oSearchPos,
+			isPrevious
+		);
+		if (!oCandidate)
+			return null;
+
+		let oContext = this.private_CreateStrongTextLanguageContext(
+			oCandidate,
+			nDistance
+		);
+		if (oContext)
+			return oContext;
+
+		oSearchPos = oCandidate.Position.Copy();
+		if (!isPrevious)
+		{
+			let nDepth = oSearchPos.GetDepth();
+			oSearchPos.Update2(oSearchPos.Get(nDepth) + 1, nDepth);
+		}
+	}
+};
+/**
+ * Получаем ближайший контекст языка сильного текста относительно заданной позиции
+ * (используется для языка курсора без выделения)
+ * @param {AscWord.CParagraphContentPos} oContentPos
+ * @returns {?object}
+ */
+Paragraph.prototype.GetNearestStrongTextLanguageContext = function(oContentPos)
+{
+	if (!oContentPos)
+		return null;
+
+	let oPrevious = this.private_FindStrongTextLanguageContext(
+		oContentPos,
+		true
+	);
+	let oNext = this.private_FindStrongTextLanguageContext(
+		oContentPos,
+		false
+	);
+
+	if (!oPrevious)
+		return oNext;
+	if (!oNext)
+		return oPrevious;
+
+	return oPrevious.Distance <= oNext.Distance ? oPrevious : oNext;
+};
+/**
  * Удаляем элемент рана в заданной позиции
  * @param {AscWord.CParagraphContentPos} oParaPos
  * @returns {boolean}

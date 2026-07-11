@@ -80,6 +80,8 @@
 
 		this.ParaBidi = oSpellChecker.Paragraph.isRtlDirection();
 		this.Lang     = null;
+		this.EastAsiaBeforeDirect = undefined;
+		this.UseScriptAwareLanguage = false;
 		this.CurLcid  = -1;
 		this.bWord    = false;
 		this.sWord    = "";
@@ -199,8 +201,16 @@
 	{
 		if (this.IsWordLetter(oElement))
 		{
-			this.CheckLang(oElement.GetDirectionFlag());
-			
+			if (this.UseScriptAwareLanguage)
+			{
+				let nLcid = AscWord.ResolveRunElementLanguage(oElement, oTextPr, this.EastAsiaBeforeDirect);
+				this.CheckLang(nLcid);
+			}
+			else
+			{
+				this.CheckLangByDirection(oElement.GetDirectionFlag());
+			}
+
 			if (!this.bWord)
 			{
 				this.startRun      = run;
@@ -252,9 +262,11 @@
 
 		this.IncreaseCheckedCounter();
 	};
-	CParagraphSpellCheckerCollector.prototype.HandleLang = function(lang)
+	CParagraphSpellCheckerCollector.prototype.HandleLang = function(oLang, nEastAsiaBeforeDirect, isScriptAwareLanguage)
 	{
-		this.Lang = lang;
+		this.Lang = oLang;
+		this.EastAsiaBeforeDirect = nEastAsiaBeforeDirect;
+		this.UseScriptAwareLanguage = !!isScriptAwareLanguage;
 	};
 	CParagraphSpellCheckerCollector.prototype.IsPunctuation = function(oElement)
 	{
@@ -277,21 +289,25 @@
 		
 		return !!(APOSTROPHES[oElement.GetCodePoint()]);
 	};
-	CParagraphSpellCheckerCollector.prototype.CheckLang = function(dirFlag)
+	CParagraphSpellCheckerCollector.prototype.CheckLang = function(nLcid)
 	{
-		let lcid = -1;
-		if (AscBidi.DIRECTION_FLAG.LTR === dirFlag)
-			lcid = this.Lang.Val;
-		else if (AscBidi.DIRECTION_FLAG.RTL === dirFlag)
-			lcid = this.Lang.Bidi;
-		
-		if (-1 === lcid)
+		if (undefined === nLcid || null === nLcid || -1 === nLcid)
 			return;
-		
-		if (-1 !== this.CurLcid && this.CurLcid !== lcid)
+
+		if (-1 !== this.CurLcid && this.CurLcid !== nLcid)
 			this.FlushWord();
-		
-		this.CurLcid = lcid;
+
+		this.CurLcid = nLcid;
+	};
+	CParagraphSpellCheckerCollector.prototype.CheckLangByDirection = function(nDirectionFlag)
+	{
+		let nLcid = -1;
+		if (AscBidi.DIRECTION_FLAG.LTR === nDirectionFlag)
+			nLcid = this.Lang.Val;
+		else if (AscBidi.DIRECTION_FLAG.RTL === nDirectionFlag)
+			nLcid = this.Lang.Bidi;
+
+		this.CheckLang(nLcid);
 	};
 
 	/**
