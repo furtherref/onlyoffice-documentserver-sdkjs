@@ -88,6 +88,7 @@ function ParaRun(Paragraph, bMathRun)
 	this.State      = new CParaRunState();       // Положение курсора и селекта в данного run
 	this.Selection  = this.State.Selection;
 	this.CompiledPr = AscWord.g_textPrCache.add(new AscWord.CTextPr());             // Скомпилированные настройки
+	this.CompiledEastAsiaBeforeDirect = undefined;                                  // Run-owned snapshot of the East Asia language just before direct run properties are merged
 	this.RecalcInfo = new CParaRunRecalcInfo();  // Флаги для пересчета (там же флаг пересчета стиля)
 	
 	this.CollPrChangeMine   = false;
@@ -7846,6 +7847,23 @@ ParaRun.prototype.getCompiledPr = function()
 	return this.Get_CompiledPr(false);
 };
 
+ParaRun.prototype.private_UpdateCompiledEastAsiaBeforeDirect = function(oTextPr)
+{
+	this.CompiledEastAsiaBeforeDirect = oTextPr && oTextPr.Lang
+		? oTextPr.Lang.EastAsia
+		: undefined;
+};
+ParaRun.prototype.private_MergeDirectTextPr = function(oTextPr)
+{
+	this.private_UpdateCompiledEastAsiaBeforeDirect(oTextPr);
+	oTextPr.Merge(this.Pr);
+};
+ParaRun.prototype.GetCompiledEastAsiaBeforeDirect = function()
+{
+	this.Get_CompiledPr(false);
+	return this.CompiledEastAsiaBeforeDirect;
+};
+
 ParaRun.prototype.Internal_Compile_Pr = function ()
 {
 	if (undefined === this.Paragraph || null === this.Paragraph)
@@ -7855,6 +7873,7 @@ ParaRun.prototype.Internal_Compile_Pr = function ()
 		var TextPr = new CTextPr();
 		TextPr.InitDefault();
 		this.RecalcInfo.TextPr = true;
+		this.private_UpdateCompiledEastAsiaBeforeDirect(TextPr);
 		return TextPr;
 	}
 
@@ -7885,6 +7904,7 @@ ParaRun.prototype.Internal_Compile_Pr = function ()
 			var TextPr = new CTextPr();
 			TextPr.InitDefault();
 			this.RecalcInfo.TextPr = true;
+			this.private_UpdateCompiledEastAsiaBeforeDirect(TextPr);
 			return TextPr;
 		}
 
@@ -7930,11 +7950,11 @@ ParaRun.prototype.Internal_Compile_Pr = function ()
 		{
 
 			TextPr.Merge(this.Parent.GetCtrPrp());
-			TextPr.Merge(this.Pr);            // Мержим прямые настройки данного рана
+			this.private_MergeDirectTextPr(TextPr); // Мержим прямые настройки данного рана
 		}
 		else
 		{
-			TextPr.Merge(this.Pr);            // Мержим прямые настройки данного рана
+			this.private_MergeDirectTextPr(TextPr); // Мержим прямые настройки данного рана
 
 			if (!this.IsNormalText()) // math text
 			{
@@ -7946,7 +7966,7 @@ ParaRun.prototype.Internal_Compile_Pr = function ()
 	else
 	{
 		var FontScale = TextPr.FontScale;
-		TextPr.Merge(this.Pr); // Мержим прямые настройки данного рана
+		this.private_MergeDirectTextPr(TextPr); // Мержим прямые настройки данного рана
 		TextPr.FontScale = FontScale;
 		if (this.Pr.Color && !this.Pr.Unifill)
 		{

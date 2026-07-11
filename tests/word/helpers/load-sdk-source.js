@@ -35,6 +35,48 @@ function createLooseStub() {
     return proxy;
 }
 
+// Under `looseGlobals`, the sandbox is wrapped in a Proxy whose `has` trap
+// unconditionally returns true (see below) so that any unresolved bare
+// identifier in legacy source resolves to a harmless callable/constructible
+// stub instead of throwing a ReferenceError. That trap makes the sandbox
+// *claim* ownership of every property name to the vm's identifier
+// resolution, which means real language intrinsics (Object, Array, Math,
+// JSON, undefined, ...) must be listed explicitly as own properties of the
+// sandbox too - otherwise a bare `Object.create(...)` inside loaded source
+// would silently resolve `Object` itself to the stub instead of the real
+// constructor. These are Node's real intrinsics, reused across the realm
+// boundary; that is safe for the constructor/method calls this harness
+// exercises.
+const NATIVE_INTRINSICS = {
+    Object: Object,
+    Array: Array,
+    Math: Math,
+    JSON: JSON,
+    Date: Date,
+    RegExp: RegExp,
+    Map: Map,
+    Set: Set,
+    WeakMap: WeakMap,
+    WeakSet: WeakSet,
+    Promise: Promise,
+    Symbol: Symbol,
+    Error: Error,
+    TypeError: TypeError,
+    RangeError: RangeError,
+    SyntaxError: SyntaxError,
+    Number: Number,
+    String: String,
+    Boolean: Boolean,
+    Function: Function,
+    isNaN: isNaN,
+    isFinite: isFinite,
+    parseInt: parseInt,
+    parseFloat: parseFloat,
+    NaN: NaN,
+    Infinity: Infinity,
+    undefined: undefined
+};
+
 function createSdkHarness(options) {
     options = options || {};
 
@@ -50,7 +92,7 @@ function createSdkHarness(options) {
                 return new Uint8Array(size);
             }
         }
-    }, options.globals || {});
+    }, options.looseGlobals ? NATIVE_INTRINSICS : {}, options.globals || {});
     const looseStub = createLooseStub();
     const sandbox = options.looseGlobals
         ? new Proxy(base, {
