@@ -37,6 +37,17 @@
 
 (function(window)
 {
+	function IsDocumentEditorParagraph(oParagraph)
+	{
+		let oLogicDocument = oParagraph && oParagraph.GetLogicDocument
+			? oParagraph.GetLogicDocument()
+			: null;
+
+		return !!(oLogicDocument
+			&& oLogicDocument.IsDocumentEditor
+			&& oLogicDocument.IsDocumentEditor());
+	}
+
 	/**
 	 * Данный класс рассчитывает текстовые настройки шрифта для выделенного текста
 	 * @constructor
@@ -159,20 +170,38 @@
 					oThis.CheckFontName(oTextPr.RFonts.EastAsia.Name);
 			}
 			
-			let nEastAsiaBeforeDirect = oRun.GetCompiledEastAsiaBeforeDirect();
-			let nStart = Math.max(0, nStartPos);
-			let nEnd   = Math.min(nEndPos, oRun.GetElementsCount());
-
-			for (let nPos = nStart; nPos < nEnd; ++nPos)
+			if (IsDocumentEditorParagraph(oParagraph))
 			{
-				let nLcid = AscWord.ResolveRunElementLanguage(
-					oRun.GetElement(nPos),
-					oTextPr,
-					nEastAsiaBeforeDirect
-				);
+				let nEastAsiaBeforeDirect = oRun.GetCompiledEastAsiaBeforeDirect();
+				let nStart = Math.max(0, nStartPos);
+				let nEnd   = Math.min(nEndPos, oRun.GetElementsCount());
 
-				if (undefined !== nLcid)
-					oThis.CheckLang(nLcid);
+				for (let nPos = nStart; nPos < nEnd; ++nPos)
+				{
+					let nLcid = AscWord.ResolveRunElementLanguage(
+						oRun.GetElement(nPos),
+						oTextPr,
+						nEastAsiaBeforeDirect
+					);
+
+					if (undefined !== nLcid)
+						oThis.CheckLang(nLcid);
+				}
+			}
+			else
+			{
+				let direction = oRun.GetDirectionFlagInRange(nStartPos, nEndPos);
+				if (AscBidi.DIRECTION_FLAG.None !== direction)
+				{
+					if (direction & AscBidi.DIRECTION_FLAG.Other)
+						oThis.CheckLangUnknown(oParagraph && oParagraph.isRtlDirection() ? oTextPr.Lang.Bidi : oTextPr.Lang.Val);
+
+					if (direction & AscBidi.DIRECTION_FLAG.LTR)
+						oThis.CheckLang(oTextPr.Lang.Val);
+
+					if (direction & AscBidi.DIRECTION_FLAG.RTL)
+						oThis.CheckLang(oTextPr.Lang.Bidi);
+				}
 			}
 
 			return false;
@@ -224,10 +253,45 @@
 			this.FontSize = oTextPr.FontSize;
 		}
 		
-		let oLanguageContext = oParagraph.GetNearestStrongTextLanguageContext(oParaContentPos);
-		this.Lang = oLanguageContext
-			? oLanguageContext.ResolvedLcid
-			: undefined;
+		if (IsDocumentEditorParagraph(oParagraph))
+		{
+			let oLanguageContext = oParagraph.GetNearestStrongTextLanguageContext(oParaContentPos);
+			this.Lang = oLanguageContext
+				? oLanguageContext.ResolvedLcid
+				: undefined;
+		}
+		else
+		{
+			let nextEl = oParagraph.GetNextRunElement();
+			let prevEl = oParagraph.GetPrevRunElement();
+
+			let dir = AscBidi.DIRECTION_FLAG.None;
+			if (!nextEl && !prevEl)
+			{
+				// Use paragraph flag
+			}
+			else if (!nextEl || !prevEl)
+			{
+				let el = nextEl ? nextEl : prevEl;
+				dir = el.GetDirectionFlag();
+			}
+			else
+			{
+				let prevDir = prevEl.GetDirectionFlag();
+				let nextDir = nextEl.GetDirectionFlag();
+				if (prevDir === nextDir || prevDir === AscBidi.DIRECTION_FLAG.LTR || prevDir === AscBidi.DIRECTION_FLAG.RTL)
+					dir = prevDir;
+				else
+					dir = nextDir;
+			}
+
+			if (AscBidi.DIRECTION_FLAG.LTR === dir)
+				this.Lang = oTextPr.Lang.Val;
+			else if (AscBidi.DIRECTION_FLAG.RTL === dir)
+				this.Lang = oTextPr.Lang.Bidi;
+			else
+				this.Lang = oParagraph.isRtlDirection() ? oTextPr.Lang.Bidi : oTextPr.Lang.Val;
+		}
 	};
 	CFontCalculator.prototype.IsStop = function()
 	{

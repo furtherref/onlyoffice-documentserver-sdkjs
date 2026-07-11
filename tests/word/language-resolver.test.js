@@ -31,7 +31,7 @@ function findFileListArrays(node, results) {
     }
 }
 
-test('every bundle config that ships the resolver consumers also loads the resolver',
+test('only the Word bundle loads the Document Editor language resolver',
 function() {
     const configNames = ['word.json', 'cell.json', 'slide.json', 'visio.json'];
 
@@ -61,20 +61,27 @@ function() {
             const classificationIndex = fileList.indexOf(FONT_CLASSIFICATION_PATH);
             const calculatorIndex = fileList.indexOf(FONT_CALCULATOR_PATH);
 
-            assert.notEqual(
-                resolverIndex,
-                -1,
-                `${configName}: LanguageResolver.js is missing from a file list ` +
-                'that also loads FontCalculator.js/ParagraphCollector.js'
-            );
-            assert.ok(
-                resolverIndex > classificationIndex,
-                `${configName}: LanguageResolver.js must load after FontClassification.js`
-            );
-            if (calculatorIndex !== -1) {
+            if ('word.json' === configName) {
+                assert.notEqual(
+                    resolverIndex,
+                    -1,
+                    'word.json: LanguageResolver.js is missing from a consumer list'
+                );
                 assert.ok(
-                    resolverIndex < calculatorIndex,
-                    `${configName}: LanguageResolver.js must load before FontCalculator.js`
+                    resolverIndex > classificationIndex,
+                    'word.json: resolver must load after FontClassification.js'
+                );
+                if (calculatorIndex !== -1) {
+                    assert.ok(
+                        resolverIndex < calculatorIndex,
+                        'word.json: resolver must load before FontCalculator.js'
+                    );
+                }
+            } else {
+                assert.equal(
+                    resolverIndex,
+                    -1,
+                    `${configName}: Document Editor resolver must not be bundled`
                 );
             }
         });

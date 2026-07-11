@@ -12566,7 +12566,15 @@ ParaRun.prototype.CheckSpelling = function(oCollector, nDepth)
 	let nStartPos = 0;
 	let oCurTextPr = this.Get_CompiledPr(false);
 
-	oCollector.HandleLang(oCurTextPr.Lang, this.GetCompiledEastAsiaBeforeDirect());
+	let oLogicDocument = this.GetLogicDocument();
+	let isDocumentEditor = !!(oLogicDocument
+		&& oLogicDocument.IsDocumentEditor
+		&& oLogicDocument.IsDocumentEditor());
+	oCollector.HandleLang(
+		oCurTextPr.Lang,
+		isDocumentEditor ? this.GetCompiledEastAsiaBeforeDirect() : undefined,
+		isDocumentEditor
+	);
 
 	if (oCollector.IsFindStart())
 	{

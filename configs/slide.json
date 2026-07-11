@@ -172,7 +172,6 @@
 			"word/Editor/DocumentSettings.js",
 			
 			"word/Editor/Paragraph/Run/FontClassification.js",
-			"word/Editor/Paragraph/Run/LanguageResolver.js",
 			"word/Editor/Paragraph/Run/FontCalculator.js",
 			"word/Editor/Paragraph/Run/run-composite-input.js",
 			"word/Editor/Paragraph/Run/RunAutoCorrect.js",

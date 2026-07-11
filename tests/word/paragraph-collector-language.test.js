@@ -92,6 +92,15 @@ function createCollectorFixture(options)
             {
                 return runOptions.eastAsiaBeforeDirect;
             },
+            GetLogicDocument: function()
+            {
+                return {
+                    IsDocumentEditor: function()
+                    {
+                        return false !== runOptions.isDocumentEditor;
+                    }
+                };
+            },
             IsEmpty: function()
             {
                 return content.length === 0;
@@ -336,5 +345,37 @@ test('English dictionary request is preserved', function()
 
     assert.deepEqual(addedWordsAndLcids(fixture.additions), [
         {word: word, lcid: 1033}
+    ]);
+});
+
+test('non-Document spelling keeps the legacy direction-based language',
+function()
+{
+    const fixture = createCollectorFixture();
+    const sdk = fixture.sandbox;
+    const LTR = sdk.AscBidi.DIRECTION_FLAG.LTR;
+    const run = fixture.createRun({
+        isDocumentEditor: false,
+        lang: {Val: 1033, EastAsia: 2052, Bidi: 1025},
+        eastAsiaBeforeDirect: 2052,
+        content: [
+            fixture.createElement({
+                codePoint: 0x4e2d,
+                direction: LTR,
+                fontSlot: sdk.AscWord.fontslot_EastAsia
+            }),
+            fixture.createElement({
+                codePoint: 0x61,
+                direction: LTR,
+                fontSlot: sdk.AscWord.fontslot_ASCII
+            })
+        ]
+    });
+
+    run.CheckSpelling(fixture.collector, 0);
+    fixture.collector.FlushWord();
+
+    assert.deepEqual(addedWordsAndLcids(fixture.additions), [
+        {word: '中a', lcid: 1033}
     ]);
 });

@@ -80,6 +80,9 @@ function createFontCalculatorFixture(options)
         this._fontSlotInRange = runOptions.fontSlotInRange !== undefined
             ? runOptions.fontSlotInRange
             : AscWord.fontslot_None;
+        this._directionFlagInRange = runOptions.directionFlagInRange !== undefined
+            ? runOptions.directionFlagInRange
+            : AscBidi.DIRECTION_FLAG.LTR;
         this._caretPos = runOptions.caretPos !== undefined
             ? runOptions.caretPos
             : 0;
@@ -90,6 +93,7 @@ function createFontCalculatorFixture(options)
             GetElementPositions: [],
             GetElementsCount: 0,
             GetFontSlotInRange: 0,
+            GetDirectionFlagInRange: 0,
             GetCompiledEastAsiaBeforeDirect: 0,
             Get_CompiledPr: 0,
             GetParagraph: 0,
@@ -138,6 +142,11 @@ function createFontCalculatorFixture(options)
     {
         this.calls.GetFontSlotInRange++;
         return this._fontSlotInRange;
+    };
+    FakeParaRun.prototype.GetDirectionFlagInRange = function()
+    {
+        this.calls.GetDirectionFlagInRange++;
+        return this._directionFlagInRange;
     };
     FakeParaRun.prototype.GetFontSlotByPosition = function()
     {
@@ -216,6 +225,7 @@ function createFontCalculatorFixture(options)
         let paragraph = Object.create(Paragraph.prototype);
         paragraph.Content = runs;
         paragraph.CurPos  = {ContentPos: caretRunIndex || 0};
+        paragraph.Selection = {Use: false};
         paragraph.GetTheme = function()
         {
             return {themeElements: {fontScheme: {}}};
@@ -223,6 +233,15 @@ function createFontCalculatorFixture(options)
         paragraph.GetNumberingTextPr = function()
         {
             return options.numberingTextPr;
+        };
+        paragraph.GetLogicDocument = function()
+        {
+            return {
+                IsDocumentEditor: function()
+                {
+                    return false !== options.isDocumentEditor;
+                }
+            };
         };
         runs.forEach(function(run)
         {
@@ -955,4 +974,79 @@ test('numbering selection keeps numbering language', function()
     assert.equal(fixture.outputTextPr.Lang.Val, 1049);
     assert.equal(fixture.outputTextPr.Bold, true);
     assert.equal(fixture.outputTextPr.FontSize, 12);
+});
+
+test('non-Document selection keeps the legacy direction-based language',
+function()
+{
+    const fixture = createFontCalculatorFixture({
+        hasSelection: true,
+        isDocumentEditor: false
+    });
+    const sdk = fixture.sandbox;
+    const LTR = sdk.AscBidi.DIRECTION_FLAG.LTR;
+    const run = fixture.buildRun({
+        textPr: createTextPr({Val: 1033, EastAsia: 2052, Bidi: 1025}),
+        eastAsiaBeforeDirect: 2052,
+        fontSlotInRange:
+            sdk.AscWord.fontslot_EastAsia | sdk.AscWord.fontslot_ASCII,
+        directionFlagInRange: LTR,
+        elements: [
+            createTextElement({
+                codePoint: 0x4e2d,
+                direction: LTR,
+                fontSlot: sdk.AscWord.fontslot_EastAsia
+            }),
+            createTextElement({
+                codePoint: 0x61,
+                direction: LTR,
+                fontSlot: sdk.AscWord.fontslot_ASCII
+            })
+        ]
+    });
+    run._paragraph = fixture.paragraph;
+    fixture.docContent.CheckSelectedRunContent = function(callback)
+    {
+        callback(run, 0, 2);
+    };
+
+    fixture.calculator.Calculate(fixture.docContent, fixture.outputTextPr);
+
+    assert.equal(fixture.outputTextPr.Lang.Val, 1033);
+    assert.equal(run.calls.GetDirectionFlagInRange, 1);
+    assert.equal(run.calls.GetElement, 0);
+    assert.equal(run.calls.GetCompiledEastAsiaBeforeDirect, 0);
+});
+
+test('non-Document caret keeps the legacy current-run language', function()
+{
+    const fixture = createFontCalculatorFixture({
+        hasSelection: false,
+        isDocumentEditor: false
+    });
+    const sdk = fixture.sandbox;
+    const LTR = sdk.AscBidi.DIRECTION_FLAG.LTR;
+    const run = fixture.buildRun({
+        textPr: createTextPr({Val: 1033, EastAsia: 2052, Bidi: 1025}),
+        eastAsiaBeforeDirect: 2052,
+        fontSlotByPosition: sdk.AscWord.fontslot_EastAsia,
+        caretPos: 0,
+        elements: [
+            createTextElement({
+                codePoint: 0x4e2d,
+                direction: LTR,
+                fontSlot: sdk.AscWord.fontslot_EastAsia
+            })
+        ]
+    });
+    const paragraph = fixture.buildParagraph([run], 0);
+    fixture.docContent.GetCurrentParagraph = function()
+    {
+        return paragraph;
+    };
+
+    fixture.calculator.Calculate(fixture.docContent, fixture.outputTextPr);
+
+    assert.equal(fixture.outputTextPr.Lang.Val, 1033);
+    assert.equal(run.calls.GetCompiledEastAsiaBeforeDirect, 0);
 });
