@@ -54,6 +54,16 @@ function() {
         sdk.AscWord.fontslot_ASCII,
         flags.Other
     ), undefined);
+    assert.equal(resolve(
+        lang,
+        sdk.AscWord.fontslot_Unknown,
+        flags.LTR
+    ), undefined);
+    assert.equal(resolve(
+        lang,
+        sdk.AscWord.fontslot_None,
+        flags.LTR
+    ), undefined);
 });
 
 test('resolver uses only a recognized pre-direct EastAsia fallback',
@@ -84,6 +94,7 @@ function() {
 test('resolver derives every ideograph LCID from existing SDK exports',
 function() {
     const sdk = loadResolver();
+    assert.equal(typeof sdk.AscWord.IsIdeographLanguage, 'function');
     const expected = [
         2052, 1066, 1042, 1041, 0x0004, 1028, 3076,
         4100, 5124, 31748, 30724, 42, 17, 18
@@ -93,6 +104,34 @@ function() {
         assert.equal(sdk.AscWord.IsIdeographLanguage(lcid), true);
     });
     assert.equal(sdk.AscWord.IsIdeographLanguage(0x7fff), false);
+});
+
+test('resolver does not synthesize entries absent from the SDK map',
+function() {
+    const sdk = loadResolver();
+    assert.equal(typeof sdk.AscWord.IsIdeographLanguage, 'function');
+
+    // An arbitrary regional tag absent from g_oLcidNameToIdMap must not
+    // be invented by the base-tag derivation.
+    assert.equal(Object.prototype.hasOwnProperty.call(
+        sdk.Asc.g_oLcidNameToIdMap,
+        'zh-XX'
+    ), false);
+
+    // Representative non-member LCIDs that exist in the SDK map but are
+    // not ideograph languages must all be rejected, proving the private
+    // set contains exactly the 14 derived members and nothing more.
+    const nonMembers = [
+        1033,  // en-US
+        3084,  // fr-CA
+        1025,  // ar-SA
+        sdk.Asc.g_oLcidNameToIdMap['en'],
+        sdk.Asc.g_oLcidNameToIdMap['fr'],
+        sdk.Asc.g_oLcidNameToIdMap['ar']
+    ];
+    nonMembers.forEach(function(lcid) {
+        assert.equal(sdk.AscWord.IsIdeographLanguage(lcid), false);
+    });
 });
 
 test('run element adapter rejects neutral and non-text candidates',
