@@ -2,11 +2,84 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 const {
     createSdkHarness,
     createTextElement,
     createTextPr
 } = require('./helpers/load-sdk-source');
+
+const CONFIGS_ROOT = path.resolve(__dirname, '../../configs');
+const FONT_CLASSIFICATION_PATH = 'word/Editor/Paragraph/Run/FontClassification.js';
+const FONT_CALCULATOR_PATH = 'word/Editor/Paragraph/Run/FontCalculator.js';
+const PARAGRAPH_COLLECTOR_PATH = 'word/Editor/SpellChecker/ParagraphCollector.js';
+const LANGUAGE_RESOLVER_PATH = 'word/Editor/Paragraph/Run/LanguageResolver.js';
+
+function findFileListArrays(node, results) {
+    if (Array.isArray(node)) {
+        if (node.length > 0 &&
+            node.every((item) => typeof item === 'string') &&
+            node.indexOf(FONT_CLASSIFICATION_PATH) !== -1) {
+            results.push(node);
+        }
+        node.forEach((item) => findFileListArrays(item, results));
+        return;
+    }
+    if (node && typeof node === 'object') {
+        Object.keys(node).forEach((key) => findFileListArrays(node[key], results));
+    }
+}
+
+test('every bundle config that ships the resolver consumers also loads the resolver',
+function() {
+    const configNames = ['word.json', 'cell.json', 'slide.json', 'visio.json'];
+
+    configNames.forEach((configName) => {
+        const configPath = path.join(CONFIGS_ROOT, configName);
+        const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+
+        const fileLists = [];
+        findFileListArrays(config, fileLists);
+
+        assert.ok(
+            fileLists.length > 0,
+            `${configName}: expected to find at least one file-list array ` +
+            'containing FontClassification.js'
+        );
+
+        fileLists.forEach((fileList) => {
+            const hasConsumer =
+                fileList.indexOf(FONT_CALCULATOR_PATH) !== -1 ||
+                fileList.indexOf(PARAGRAPH_COLLECTOR_PATH) !== -1;
+
+            if (!hasConsumer) {
+                return;
+            }
+
+            const resolverIndex = fileList.indexOf(LANGUAGE_RESOLVER_PATH);
+            const classificationIndex = fileList.indexOf(FONT_CLASSIFICATION_PATH);
+            const calculatorIndex = fileList.indexOf(FONT_CALCULATOR_PATH);
+
+            assert.notEqual(
+                resolverIndex,
+                -1,
+                `${configName}: LanguageResolver.js is missing from a file list ` +
+                'that also loads FontCalculator.js/ParagraphCollector.js'
+            );
+            assert.ok(
+                resolverIndex > classificationIndex,
+                `${configName}: LanguageResolver.js must load after FontClassification.js`
+            );
+            if (calculatorIndex !== -1) {
+                assert.ok(
+                    resolverIndex < calculatorIndex,
+                    `${configName}: LanguageResolver.js must load before FontCalculator.js`
+                );
+            }
+        });
+    });
+});
 
 function loadResolver() {
     const harness = createSdkHarness();
