@@ -12565,6 +12565,9 @@ ParaRun.prototype.CheckSpelling = function(oCollector, nDepth)
 
 	let nStartPos = 0;
 	let oCurTextPr = this.Get_CompiledPr(false);
+
+	oCollector.HandleLang(oCurTextPr.Lang, this.GetCompiledEastAsiaBeforeDirect());
+
 	if (oCollector.IsFindStart())
 	{
 		nStartPos = oCollector.GetPos(nDepth);
@@ -12576,8 +12579,6 @@ ParaRun.prototype.CheckSpelling = function(oCollector, nDepth)
 
 		if (true === this.IsEmpty())
 			return;
-
-		oCollector.HandleLang(oCurTextPr.Lang);
 	}
 
 	for (let nPos = nStartPos, nContentLen = this.Content.length; nPos < nContentLen; ++nPos)
