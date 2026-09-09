@@ -8365,7 +8365,19 @@
 	 * @see office-js-api/Examples/{Editor}/ApiWorksheet/Methods/SetActive.js
 	 */
 	ApiWorksheet.prototype.SetActive = function () {
-		return this.worksheet.workbook.setActive(this.worksheet.index);
+		// Fork-specific: when a live editor view exists, activate the sheet through the same
+		// path the UI uses (asc_showWorksheet) so the visible canvas, status bar and model
+		// stay in sync; upstream only updated the model's active index. Hidden sheets keep
+		// the model-only behaviour so SetActive never unhides anything (use SetVisible first).
+		var wb = this.worksheet.workbook, oApi = wb.oApi, index = this.worksheet.index;
+		if (oApi && oApi.wb && !this.worksheet.getHidden()) {
+			if (oApi.wb.wsActive !== index)
+				oApi.asc_showWorksheet(index);
+			if (oApi.wb.wsActive === index && wb.nActive !== index)
+				wb.setActive(index); // reconcile an earlier model-only activation
+			return oApi.wb.wsActive === index;
+		}
+		return wb.setActive(index);
 	};
 	Object.defineProperty(ApiWorksheet.prototype, "Active", {
 		set: function () {
@@ -11254,6 +11266,10 @@
 				wsView.updateSelection();
 				if (wsView.drawingCtx) {
 					wsView._scrollToRange(bbox);
+				}
+				// Fork-specific: keep the name box and selection info in step with the new selection.
+				if (wsView._updateSelectionNameAndInfo) {
+					wsView._updateSelectionNameAndInfo();
 				}
 			} else {
 				newSelection.Select();
