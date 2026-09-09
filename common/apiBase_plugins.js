@@ -2516,6 +2516,70 @@
 	};
 
 	/**
+	 * Fork-specific (furtherref): opens the browser file picker from the editor frame, which owns the
+	 * user activation of the toolbar click that plugin iframes never receive, and returns the picked
+	 * file to the plugin. Not part of the upstream ONLYOFFICE plugin API.
+	 * @memberof Api
+	 * @alias ShowOpenFileDialog
+	 * @param {Object} [options]
+	 * @param {string} [options.accept] - Comma separated extensions/MIME types for the input element.
+	 * @param {number} [options.maxSize=26214400] - Maximum accepted file size in bytes (capped at 50 MB).
+	 * @returns {?Object} {name, size, type, data(base64)} | {error: "size"|"read", name, size} | null when cancelled.
+	 */
+	Api.prototype["pluginMethod_ShowOpenFileDialog"] = function(options)
+	{
+		window.g_asc_plugins && window.g_asc_plugins.setPluginMethodReturnAsync();
+		var answered = false;
+		function answer(value)
+		{
+			if (answered)
+				return;
+			answered = true;
+			window.removeEventListener("focus", onFocus);
+			if (input && input.remove)
+				input.remove();
+			window.g_asc_plugins && window.g_asc_plugins.onPluginMethodReturn(value);
+		}
+		options = options && typeof options === "object" ? options : {};
+		var accept = typeof options["accept"] === "string" ? options["accept"].slice(0, 200) : "";
+		var maxSize = Number(options["maxSize"]);
+		if (!(maxSize > 0)) maxSize = 25 * 1024 * 1024;
+		maxSize = Math.min(maxSize, 50 * 1024 * 1024);
+		if (typeof document === "undefined" || typeof FileReader === "undefined")
+			return answer(null);
+		var input = document.createElement("input");
+		input.type = "file";
+		if (accept)
+			input.accept = accept;
+		input.style.display = "none";
+		document.body.appendChild(input);
+		function onFocus()
+		{
+			// Browsers without the input "cancel" event: focus returns without a selection.
+			setTimeout(function() { if (!input.files || !input.files.length) answer(null); }, 1000);
+		}
+		input.addEventListener("cancel", function() { answer(null); });
+		input.addEventListener("change", function()
+		{
+			var file = input.files && input.files[0];
+			if (!file)
+				return answer(null);
+			if (file.size > maxSize)
+				return answer({"error": "size", "name": file.name, "size": file.size});
+			var reader = new FileReader();
+			reader.onload = function()
+			{
+				var url = String(reader.result || "");
+				answer({"name": file.name, "size": file.size, "type": file.type || "", "data": url.slice(url.indexOf(",") + 1)});
+			};
+			reader.onerror = function() { answer({"error": "read", "name": file.name, "size": file.size}); };
+			reader.readAsDataURL(file);
+		});
+		window.addEventListener("focus", onFocus);
+		input.click();
+	};
+
+	/**
 	 * Returns focus to the editor.
 	 * @memberof Api
 	 * @alias FocusEditor
